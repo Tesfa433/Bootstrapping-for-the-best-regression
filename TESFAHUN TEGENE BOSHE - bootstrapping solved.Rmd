@@ -1,0 +1,147 @@
+---
+title: "Homework - Bootstrapping to find best linear regression"
+author: "Tesfahun Tegene Boshe"
+date: "12/17/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction 
+
+A sample of data with two variables x,y was given. It is known that there is a natural true relationship between those two variables, however, hidden from us because there is some randomness. The task was to find this true relationship using only sample data. 
+
+Assuming the relationship to be linear
+Y = alpha + beta*x + error
+
+I used bootstrapping to find the best approximations of alpha, beta which minimize error term 'error'. Since I do not have the who data, I won't be able to know the error ( I believe the professor will evaluate my solution by comparing my result to the true line.)
+
+boot() - boot() function from boot R package was used for creating samples. 
+lm() - lm() function from stats package was used to fit linear models. 
+pam()- PAM clustering (with 1 cluster center) was used to find the mediods of x,y variables separately. 
+
+
+
+```{r}
+# load required packages
+requiredPackages = c( "broom","triangle", "readr", "RColorBrewer","boot","cluster") # list of required packages
+for(i in requiredPackages){if(!require(i,character.only = TRUE)) install.packages(i)}
+for(i in requiredPackages){if(!require(i,character.only = TRUE)) library(i,character.only = TRUE) } 
+
+```
+
+## Load the sample data
+
+A sample data of 350 samples (from 1000,000) was given. 
+
+```{r}
+# load the data
+sample_all <- dataset <- read_delim("C:\\Users\\tesfa\\OneDrive\\Documents\\CoursesDataScince\\Applied Microeconomics\\Materials of Topic 3.2-20201111\\Topic_3_2_MC_2020\\Topic_3_2_MC_2020\\sample_all.csv", ";", escape_double = FALSE, trim_ws = TRUE) # load the sample 
+
+```
+
+## function performing regression 
+return the coefficients of regression .
+
+```{r}
+# function to obtain regression weights
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(coef(fit))
+}
+
+```
+## bootstrapping with 10000 replications
+```{r}
+# bootstrapping with 1000 replications
+# 
+results <- boot(data=sample_all, statistic=bs,
+                R=10000, formula=y~x)
+```
+## results of bootstrapping
+```{r}
+# view results
+plot(results, index=1,, main="Histogram of y - intercepts", col="aquamarine3", breaks=50, probability=TRUE) # y-intercept  
+```
+```{r}
+# view results
+plot(results, index=2,, main="Histogram of slope values", col="aquamarine3", breaks=50, probability=TRUE) # y-intercept  
+```
+
+### results for alpha variable
+```{r}
+# view results
+par(mfrow=c(2,1)) #to have two graphs in one window one above the other 
+#histogram for alfa_a
+hist(results$t[,1], main="Histogram of a", col="aquamarine3", breaks=50, probability=TRUE)
+lines(density(results$t[,1]), lwd=3)
+#summary of coefficient alfa_a
+summary(results$t[,1])
+#histogram for alfa_b
+```
+### results for beta variable
+```{r}
+hist(results$t[,2], main="Histogram of b", col="aquamarine3", breaks=50, probability=TRUE)
+lines(density(results$t[,2]), lwd=3)
+#summary of coefficient alfa_b
+summary(results$t[,2])
+par(mfrow=c(1,1)) #return to the screen with one graph displayed 
+
+```
+## Clustering
+* I clustered the y - intercept and the slope values to find the best measure of center
+* PAM clustering was used ( with k = 1 as number of clusters)
+* Medoids are the most central elements of the data
+```{r}
+#use clustering to find the best approximation of alfa_median, beta_edian
+alfa_a = pam(results$t[,1],1) #cluster::pam(), works for n<65536
+beta_b = pam(results$t[,2],1) #cluster::pam(), works for n<65536
+alfa_median = (alfa_a$medoids[,1]) 
+beta_median = (beta_b$medoids[,1])
+```
+### color plot of points distribution
+* Define a function for plotting color by density
+```{r}
+# distribution of a and b as XY plot
+#creating a function that will help to make a graph (scatterplot of x and y estimates of 1000 repetitions)
+#densCols produces a vector containing colors which encode the local densities at each point in a scatterplot.
+plot_colorByDensity = function(x1,x2,
+                               ylim=c(min(x2),max(x2)),
+                               xlim=c(min(x1),max(x1)),
+                               xlab="",ylab="",main="") {
+  df <- data.frame(x1,x2)
+  x <- densCols(x1,x2, colramp=colorRampPalette(c("black", "white")))
+  df$dens <- col2rgb(x)[1,] + 1L
+  cols <-  colorRampPalette(c("#000099", "#00FEFF", "#45FE4F","#FCFF00", "#FF9400", "#FF3100"))(256)
+  df$col <- cols[df$dens]
+  plot(x2~x1, data=df[order(df$dens),], 
+       ylim=ylim,xlim=xlim,pch=20,col=col,
+       cex=2,xlab=xlab,ylab=ylab,
+       main=main)}
+############################### function end ###################################
+```
+# Plot the color by density for the sample data
+```{r}
+#using the above function on our data
+plot_colorByDensity(results$t[,1],results$t[,2],xlab="alpha",ylab="beta",
+                    main = paste0("Bootstrapped estimators: [mean_a =", round( mean(results$t[,1]),1), ", mean_b =", round( mean(results$t[,2]),2), "]"))
+# abline(h = beta_b,v = alfa_b,lwd=2)
+abline(h=mean(results$t[,2]), v=mean(results$t[,1]), lwd=2)
+
+print("alpha = ",); mean(results$t[,1])
+print("beta = ",); mean(results$t[,2])
+```
+
+## Comments
+* The sampling method used in Bootstrap 2020 Student.R was replaced by boot() function as recommended. 
+* PAM clustering with 1 center returns the medoid of the data. SInce the data is almost perfectly gaussian, I believe the mean can be a better measure of center. 
+* boot package does a much faster sampling.
+
+## References
+[1] AM 2020 Topic 3.2 Bootstrapping ok at moodle page for the course 'Advanced Microeconomics' at UW. 
+[2] https://www.statmethods.net/advstats/bootstrapping.html 
+[3] Sample code 'Bootstrap 2020 Student' at moodle page for the course 'Advanced Microeconomics' at UW.  
+
